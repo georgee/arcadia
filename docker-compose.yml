@@ -1,0 +1,93 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:15
+    restart: unless-stopped
+    env_file:
+      - backend/storage/.env
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7
+    command: ["redis-server", "--appendonly", "yes"]
+    restart: unless-stopped
+    env_file:
+      - backend/api/.env
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: ./backend/api
+      dockerfile: Dockerfile
+    env_file:
+      - backend/api/.env
+      - shared/.env
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./backend/api/uploads:/app/uploads:rw
+
+  storage:
+    build:
+      context: ./backend/storage
+      dockerfile: Dockerfile
+    env_file:
+      - backend/storage/.env
+      - shared/.env
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  periodic-tasks:
+    build:
+      context: ./backend/periodic-tasks
+      dockerfile: Dockerfile
+    env_file:
+      - backend/periodic-tasks/.env
+      - backend/api/.env
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    env_file:
+      - frontend/.env
+    depends_on:
+      - backend
+    restart: unless-stopped
+    ports:
+      - "5137:5137"
+    volumes:
+      - ./frontend:/app:cached
+
+  tracker:
+    build:
+      context: ./tracker/arcadia_tracker
+      dockerfile: Dockerfile
+    env_file:
+      - tracker/.env
+    restart: unless-stopped
+    ports:
+      - "6969:6969"
+    depends_on:
+      - db
+      - redis
+
+volumes:
+  db_data:
+  redis_data:
